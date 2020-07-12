@@ -1,13 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Anki.Vector;
 using Anki.Vector.Events;
 using Anki.Vector.Types;
-using VectorPlus.Lib.ML;
+using VectorPlus.Lib.Vision;
 using static VectorPlus.Lib.IVectorActionPlus;
 using static VectorPlus.Lib.IVectorControllerPlus;
 
@@ -30,16 +29,15 @@ namespace VectorPlus.Lib
         public List<IVectorBehaviourPlus> Behaviours { get; private set; }
         public Queue<IVectorActionPlus> Actions { get; private set; }
         public List<VectorBehaviourPlusReport> Reports { get; private set; }
+        public List<ICameraFrameProcessor> FrameProcessors { get; private set; }
 
         // object monitoring
         private readonly TimeSpan objectGoneThreshold = TimeSpan.FromSeconds(5);
         private Dictionary<int, ObjectSeenState> objectSeenStates;
 
         // camera frame processing
-        private CameraFrameProcessor frameProcessor;
         private ImageEncoding recentEncoding;
         private byte[] recentImage;
-
 
         public string LastConnectionError { get; private set; }
         public Exception LastConnectionException { get; private set; }
@@ -60,6 +58,7 @@ namespace VectorPlus.Lib
             this.Actions = new Queue<IVectorActionPlus>();
             this.Reports = new List<VectorBehaviourPlusReport>();
             this.objectSeenStates = new Dictionary<int, ObjectSeenState>();
+            this.FrameProcessors = new List<ICameraFrameProcessor>();
             OnConnectionChanged += async (state) => await RespondToConnectionAsync(state);
         }
 
@@ -76,6 +75,8 @@ namespace VectorPlus.Lib
                 OnConnectionChanged?.Invoke(connection);
             }
         }
+
+        public bool MainLoopRunning => mainLoopRunning;
 
         public async Task StartMainLoopAsync(CancellationToken cancel, char? haltOn = ' ')
         {
@@ -118,14 +119,13 @@ namespace VectorPlus.Lib
 
         private void ProcessCameraFrame()
         {
-            if (recentImage != null && frameProcessor != null)
+            if (recentImage != null && FrameProcessors.Count > 0)
             {
-                // NB. Because the dimensions of bounding boxes correspond to
-                // the model input of 416 x 416, remember to scale the bounding
-                // box for overlaying on images if doing that!
-
-                var result = frameProcessor.Process(recentImage);
-                OnCameraFrameProcessingResult?.Invoke(result);
+                foreach (var processor in FrameProcessors)
+                {
+                    var result = processor.Process(recentImage);
+                    OnCameraFrameProcessingResult?.Invoke(result);
+                }
             }
         }
 
@@ -141,7 +141,13 @@ namespace VectorPlus.Lib
 
         public void StopMainLoop() { mainLoopRunning = false; }
 
-        public async Task<bool> ConnectAsync(VectorControllerPlusConfig controllerConfig, RobotConfiguration robotConfig)
+        /// <summary>
+        /// Attempts to connect to the Robot.
+        /// </summary>
+        /// <param name="controllerConfig"></param>
+        /// <param name="robotConfig"></param>
+        /// <returns>True if the connection initially succeeded.</returns>
+        public async Task<bool> ConnectAsync(VectorControllerPlusConfig controllerConfig, RobotConfiguration robotConfig = null)
         {
             this.controllerConfig = controllerConfig;
             this.robotConfig = robotConfig;
@@ -228,6 +234,7 @@ namespace VectorPlus.Lib
         public async ValueTask DisposeAsync()
         {
             await DisconnectAsync();
+            Behaviours.ToList().ForEach(async b => await RemoveBehaviourAsync(b.UniqueReference));
         }
 
         public async Task AddBehaviourAsync(IVectorBehaviourPlus behaviour)
@@ -235,6 +242,7 @@ namespace VectorPlus.Lib
             if (!Behaviours.Any(b => b.UniqueReference == behaviour.UniqueReference))
             {
                 Behaviours.Add(behaviour);
+                UpdateFrameProcessors();
 
                 if (Connection == ConnectedState.Connected)
                 {
@@ -268,7 +276,7 @@ namespace VectorPlus.Lib
 
             if (AnyBehavioursNeedCameraProcessing)
             {
-                frameProcessor = frameProcessor ?? new CameraFrameProcessor();
+                UpdateFrameProcessors();
                 Robot.Camera.ImageReceived += Camera_ImageReceived;
                 if (!Robot.Camera.IsFeedActive)
                 {
@@ -277,6 +285,7 @@ namespace VectorPlus.Lib
             }
             else
             {
+                UpdateFrameProcessors();
                 Robot.Camera.ImageReceived -= Camera_ImageReceived;
                 if (Robot.Camera.IsFeedActive)
                 {
@@ -315,6 +324,19 @@ namespace VectorPlus.Lib
             }
         }
 
+        private void UpdateFrameProcessors()
+        {
+            var requiredTypes = Behaviours.SelectMany(b => b.RequestedFrameProcessors).Distinct();
+            var presentTypes = FrameProcessors.Select(p => p.GetType()).Distinct();
+
+            var toRemove = presentTypes.Where(t => !requiredTypes.Contains(t)).ToList();
+            var toAdd = requiredTypes.Where(t => !presentTypes.Contains(t));
+            
+            FrameProcessors.Where(p => toRemove.Contains(p.GetType())).ToList().ForEach(p => p.Dispose());
+            FrameProcessors.RemoveAll(p => toRemove.Contains(p.GetType()));
+            FrameProcessors.AddRange(toAdd.Select(t => (ICameraFrameProcessor)Activator.CreateInstance(t)));
+        }
+
         private void UpdateObjectMonitoring()
         {
             foreach (var seenState in objectSeenStates)
@@ -336,6 +358,7 @@ namespace VectorPlus.Lib
         {
             var found = Behaviours.Where(b => b.UniqueReference == reference);
             Behaviours.RemoveAll(b => b.UniqueReference == reference);
+            UpdateFrameProcessors();
             if (Connection == ConnectedState.Connected)
             {
                 await ActOnAnyBehaviourPermanentRequirements();
@@ -356,7 +379,7 @@ namespace VectorPlus.Lib
         {
             get
             {
-                return Behaviours.Any(b => b.NeedsObjectDetection);
+                return Behaviours.Any(b => b.NeedsFrameProcessing);
             }
         }
 

@@ -18,6 +18,9 @@
     <ProjectReference Include="..\VectorPlus.Lib\VectorPlus.Lib.csproj">
       <GlobalPropertiesToRemove></GlobalPropertiesToRemove>
     </ProjectReference>
+    <ProjectReference Include="..\VectorPlus.Capabilities.Vision\VectorPlus.Capabilities.Vision.csproj">
+      <GlobalPropertiesToRemove></GlobalPropertiesToRemove>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="3.1.3" />
@@ -47,6 +50,13 @@
     <None Remove="bin\Debug\netcoreapp3.1\x64\libtesseract3052.so.dll" />
     <None Remove="bin\Debug\netcoreapp3.1\x86\liblept1753.so.dll" />
     <None Remove="bin\Debug\netcoreapp3.1\x86\libtesseract3052.so.dll" />
+    <None Remove="obj\Release\netcoreapp3.1\Razor\Views\Config\Index.cshtml.g.cs" />
+    <None Remove="obj\Release\netcoreapp3.1\Razor\Views\Home\Index.cshtml.g.cs" />
+    <None Remove="obj\Release\netcoreapp3.1\Razor\Views\Shared\Error.cshtml.g.cs" />
+    <None Remove="obj\Release\netcoreapp3.1\Razor\Views\Shared\_Layout.cshtml.g.cs" />
+    <None Remove="obj\Release\netcoreapp3.1\Razor\Views\Shared\_ValidationScriptsPartial.cshtml.g.cs" />
+    <None Remove="obj\Release\netcoreapp3.1\Razor\Views\_ViewImports.cshtml.g.cs" />
+    <None Remove="obj\Release\netcoreapp3.1\Razor\Views\_ViewStart.cshtml.g.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="**/*" />

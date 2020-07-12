@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="ImageNetStructures\" />
+    <Folder Include="Yolo\" />
+    <Folder Include="Onnx\" />
+    <Folder Include="assets\" />
+    <Folder Include="LaserSpot\" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\VectorPlus.Lib\VectorPlus.Lib.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="assets\Model\TinyYolo2_model.onnx" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="assets\Model\TinyYolo2_model.onnx" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxTransformer" Version="1.5.0" />
+    <PackageReference Include="Microsoft.ML" Version="1.5.0" />
+    <PackageReference Include="Microsoft.ML.ImageAnalytics" Version="1.5.0" />
+    <PackageReference Include="System.Drawing.Common" Version="4.7.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="CoreCompat.System.Drawing, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="LaserSpot\LaserSpotDetectorCameraFrameProcessor.cs" />
+  </ItemGroup>
+</Project>
